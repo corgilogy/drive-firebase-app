@@ -1,0 +1,12 @@
+# Thư viện cài đặt (Rất nặng, không up lên)
+node_modules/
+
+# File cấu hình hệ thống máy Mac (nếu dùng Mac)
+.DS_Store
+
+# File khóa bảo mật (CỰC KỲ QUAN TRỌNG)
+# Dòng dưới đây sẽ chặn tất cả các file json bắt đầu bằng "web-app..."
+web-app-drive-*.json
+
+# File biến môi trường (nếu có)
+.env

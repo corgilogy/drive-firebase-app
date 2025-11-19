@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drive Manager</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Quản lý File Google Drive</h1>
+
+      <!-- Khu vực Upload -->
+      <div class="upload-section">
+        <input type="file" id="fileInput" />
+        <button onclick="uploadFile()" id="uploadBtn">Tải lên Drive</button>
+        <p id="status"></p>
+      </div>
+
+      <hr />
+
+      <!-- Danh sách File từ Drive -->
+      <div class="list-section">
+        <h2>Danh sách trên Drive</h2>
+        <button onclick="loadFiles()">Làm mới danh sách</button>
+        <ul id="fileList"></ul>
+      </div>
+
+      <hr />
+
+      <!-- Lịch sử từ Firebase Database -->
+      <div class="history-section">
+        <h2>Lịch sử Upload (Firebase DB)</h2>
+        <ul id="dbHistory"></ul>
+      </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+
+    <script src="app.js"></script>
+  </body>
+</html>
