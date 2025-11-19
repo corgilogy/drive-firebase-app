@@ -1,21 +1,29 @@
 // --- CẤU HÌNH ---
-// 1. Thay thế bằng Firebase Config của bạn (Bước 4.1)
+
+// 1. Firebase Config
 const firebaseConfig = {
-  apiKey: "AIzaSy...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "...",
+  apiKey: "AIzaSyDOUCC56svyZ5pGZV7z160PW4Z8rJ01jdw",
+  authDomain: "dnduc-drive.firebaseapp.com",
+  databaseURL:
+    "https://dnduc-drive-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "dnduc-drive",
+  storageBucket: "dnduc-drive.firebasestorage.app",
+  messagingSenderId: "875885392954",
+  appId: "1:875885392954:web:14fbd18df62155bf6b7103",
+  measurementId: "G-455HFS41MH",
 };
 
-// 2. Thay thế bằng URL của Netlify Function sau khi deploy (Xem hướng dẫn deploy bên dưới)
-// Khi chạy local (nếu dùng netlify dev): http://localhost:8888/.netlify/functions/api
-// Khi deploy: https://TÊN-SITE-NETLIFY.netlify.app/.netlify/functions/api
-const API_URL = "https://YOUR-NETLIFY-SITE.netlify.app/.netlify/functions/api";
+// =======================================================================
+// 2. CẤU HÌNH BACKEND (ĐÃ SỬA LẠI CHÍNH XÁC)
+// =======================================================================
+// Tôi đã sửa đường dẫn này cho bạn. Đảm bảo chỉ có một đuôi .netlify.app
+const API_URL = "https://dnduc.netlify.app/.netlify/functions/api";
+// =======================================================================
 
 // Khởi tạo Firebase
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 const db = firebase.firestore();
 
 // --- CHỨC NĂNG ---
@@ -23,19 +31,33 @@ const db = firebase.firestore();
 // 1. Lấy danh sách file từ Drive
 async function loadFiles() {
   const list = document.getElementById("fileList");
-  list.innerHTML = "Đang tải...";
+  if (!list) return;
+
+  list.innerHTML = "Đang tải dữ liệu từ Netlify...";
 
   try {
     const res = await fetch(API_URL);
+
+    if (!res.ok) {
+      throw new Error(
+        `Lỗi kết nối (${res.status}). Vui lòng kiểm tra Netlify Function.`
+      );
+    }
+
     const files = await res.json();
 
     list.innerHTML = "";
+    if (!files || files.length === 0) {
+      list.innerHTML = "Thư mục trống.";
+      return;
+    }
+
     files.forEach((file) => {
       const li = document.createElement("li");
       li.innerHTML = `
                 <span>${file.name}</span>
-                <div>
-                    <a href="${file.webViewLink}" target="_blank">Mở</a>
+                <div style="margin-left: auto;">
+                    <a href="${file.webViewLink}" target="_blank" style="margin-right: 10px;">Mở</a>
                     <a href="${file.webContentLink}" target="_blank">Tải xuống</a>
                 </div>
             `;
@@ -43,7 +65,7 @@ async function loadFiles() {
     });
   } catch (err) {
     console.error(err);
-    list.innerHTML = "Lỗi khi tải danh sách.";
+    list.innerHTML = `<span style="color: red;">Lỗi: ${err.message}</span>`;
   }
 }
 
@@ -55,23 +77,26 @@ async function uploadFile() {
   const btn = document.getElementById("uploadBtn");
 
   if (!file) {
-    alert("Vui lòng chọn file!");
+    alert("Vui lòng chọn file trước!");
     return;
   }
 
-  status.innerText = "Đang xử lý...";
+  status.innerText = "Đang mã hóa file...";
+  status.style.color = "blue";
   btn.disabled = true;
 
-  // Chuyển file sang Base64 để gửi qua JSON (Cách đơn giản nhất)
   const reader = new FileReader();
   reader.readAsDataURL(file);
   reader.onload = async () => {
     const base64Content = reader.result.split(",")[1];
+    status.innerText = "Đang gửi sang Netlify (có thể mất vài giây)...";
 
     try {
-      // Gửi sang Netlify Function
       const res = await fetch(API_URL, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           name: file.name,
           type: file.type,
@@ -83,49 +108,79 @@ async function uploadFile() {
 
       if (res.ok) {
         status.innerText = "Upload thành công!";
+        status.style.color = "green";
 
         // --- LƯU VÀO DATABASE FIREBASE ---
-        await db.collection("uploads").add({
-          fileName: data.name,
-          fileId: data.id,
-          viewLink: data.webViewLink,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+        try {
+          await db.collection("uploads").add({
+            fileName: data.name,
+            fileId: data.id,
+            viewLink: data.webViewLink,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (dbError) {
+          console.error("Lỗi lưu DB:", dbError);
+        }
 
-        // Làm mới danh sách
+        // Reset giao diện
         loadFiles();
         loadHistory();
+        fileInput.value = "";
       } else {
-        status.innerText = "Lỗi: " + JSON.stringify(data);
+        status.innerText =
+          "Lỗi Server: " + (data.error || JSON.stringify(data));
+        status.style.color = "red";
       }
     } catch (err) {
-      status.innerText = "Lỗi kết nối.";
+      status.innerText = "Lỗi kết nối: Không gọi được Netlify.";
+      status.style.color = "red";
       console.error(err);
     }
     btn.disabled = false;
-    fileInput.value = "";
   };
 }
 
 // 3. Lấy lịch sử từ Firebase Database
 function loadHistory() {
   const list = document.getElementById("dbHistory");
+  if (!list) return;
+
+  // Sử dụng onSnapshot để tự động cập nhật khi có dữ liệu mới
   db.collection("uploads")
     .orderBy("timestamp", "desc")
     .limit(10)
-    .onSnapshot((snapshot) => {
-      list.innerHTML = "";
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        li.innerHTML = `Đã tải lên: ${data.fileName} <br> <small>${new Date(
-          data.timestamp?.toDate()
-        ).toLocaleString()}</small>`;
-        list.appendChild(li);
-      });
-    });
+    .onSnapshot(
+      (snapshot) => {
+        list.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const time = data.timestamp
+            ? new Date(data.timestamp.toDate()).toLocaleString()
+            : "Vừa xong";
+
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <div>
+                <strong>${data.fileName}</strong><br>
+                <small>${time}</small>
+            </div>
+            <a href="${data.viewLink}" target="_blank">Xem</a>
+        `;
+          list.appendChild(li);
+        });
+      },
+      (error) => {
+        console.error("Lỗi tải lịch sử:", error);
+        list.innerHTML = "Không tải được lịch sử (Kiểm tra Firestore Rules).";
+      }
+    );
 }
 
 // Chạy khi mở web
-loadFiles();
-loadHistory();
+document.addEventListener("DOMContentLoaded", () => {
+  // Vì trong HTML bạn đã để onclick="uploadFile()" nên không cần addEventListener cho nút nữa
+  // để tránh bị upload 2 lần.
+
+  loadFiles();
+  loadHistory();
+});
